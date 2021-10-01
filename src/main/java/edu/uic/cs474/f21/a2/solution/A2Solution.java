@@ -9,10 +9,10 @@ public class A2Solution implements ObjectInspector{
     @Override
     public Map<String, String> describeObject(Object o) {
         Class<?> c = o.getClass();
-        Field[] fs = c.getDeclaredFields();
+        Field[] fs = c.getFields();
+
 
         Map<String, String> ret = new HashMap<>();
-
         for(Field f: fs){
             try {
                 String key = f.getName();
@@ -22,8 +22,10 @@ public class A2Solution implements ObjectInspector{
             }
             catch(ReflectiveOperationException e)
             {
+
                 throw new Error(e);
             }
+
 
         }
         return ret;
