@@ -2,25 +2,25 @@ package edu.uic.cs474.f21.a2.solution;
 import edu.uic.cs474.f21.a2.ObjectInspector;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
+import java.lang.reflect.Modifier;
+import java.util.*;
 
 public class A2Solution implements ObjectInspector{
     String key;
     String value;
     Object Obj;
     Object Obj1;
+
     //Helper Function
     public String GetValue(Object c,Field f) throws IllegalAccessException{
-
+        f.setAccessible(true);
         Obj=f.get(c);
-
         if(Obj==null){
             return "null";
         }
         Obj1= Obj.getClass().getName();
-
         String v;
+
         if(Obj1.equals("java.lang.Integer")){
             if(f.getType().getName().equals("int")) {
                 v = Integer.toString((Integer) f.get(c));
@@ -30,6 +30,7 @@ public class A2Solution implements ObjectInspector{
             }
             return v;
         }
+
         if(Obj1.equals("java.lang.Long")){
             if(f.getType().getName().equals("long")) {
                 v = Long.toString((Long) f.get(c));
@@ -101,36 +102,53 @@ public class A2Solution implements ObjectInspector{
         }
         else{
             return Obj.toString();
-
         }
+    }
+    //Helper Function
+    public Set<Field> getPrivateField(Class<?> c,Set<Field>  field) {
+        while (!c.getName().equals("java.lang.Object")) {
+            for (Field f : List.of(c.getFields())) {
+                if (!Modifier.isPrivate(f.getModifiers())) {
+                    field.add(f);
+                    c=c.getSuperclass();
+                }
+            }
+        }
+        return field;
     }
 
     @Override
     public Map<String, String> describeObject(Object o) {
         Class<?> c = o.getClass();
-        Field[] fs = c.getFields();
-
+        Set<Field> field = new HashSet<>(List.of(c.getDeclaredFields()));
         Map<String, String> ret = new HashMap<>();
-        for(Field f: fs){
+        //Helper Function Called
+        field=getPrivateField(c.getSuperclass(),field);
+
+        for(Field f: field){
             try {
                 key = f.getName();
                 //Helper Function Called
-
                 value = GetValue(o,f);
                 ret.put(key , value);
             }
             catch(ReflectiveOperationException e) {
                 throw new Error(e);
+            } catch (RuntimeException e){
+                key=f.getName();
+                value="Thrown exception: "+e.getClass().getName();
+            } catch (Error e){
+                value="Raised error: "+e.getClass().getName();
+            }
+            finally{
+                ret.put(key , value);
             }
         }
         return ret;
     }
-
-
 
     @Override
     public void updateObject(Object o, Map<String, Object> fields) {
         throw new Error("Not Implemented");
     }
 }
-
