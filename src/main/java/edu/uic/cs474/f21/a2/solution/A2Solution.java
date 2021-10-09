@@ -60,8 +60,22 @@ public class A2Solution implements ObjectInspector {
                     continue;
                 ret.add(f);
             }
+            for(Class<?> iface : c.getInterfaces()){
+                ret.addAll(getAllInterfaceField(iface));
+            }
             c = c.getSuperclass();
 
+        }
+        return ret;
+    }
+    private Set<Field> getAllInterfaceField(Class<?> iface){
+        Set<Field> ret = new HashSet<>();
+
+        for(Field f : iface.getDeclaredFields()){
+            ret.add(f);
+        }
+        for(Class<?> i : iface.getInterfaces()){
+            ret.addAll(getAllInterfaceField(i));
         }
         return ret;
     }
