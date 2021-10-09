@@ -1,154 +1,158 @@
 package edu.uic.cs474.f21.a2.solution;
+import edu.uic.cs474.f21.a2.Main;
 import edu.uic.cs474.f21.a2.ObjectInspector;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
-public class A2Solution implements ObjectInspector{
+public class A2Solution implements ObjectInspector {
     String key;
     String value;
     Object Obj;
     Object Obj1;
 
-    //Helper Function
-    public String GetValue(Object c,Field f) throws IllegalAccessException{
-        f.setAccessible(true);
-        Obj=f.get(c);
-        if(Obj==null){
-            return "null";
-        }
-        Obj1= Obj.getClass().getName();
-        String v;
-
-        if(Obj1.equals("java.lang.Integer")){
-            if(f.getType().getName().equals("int")) {
-                v = Integer.toString((Integer) f.get(c));
-            }
-            else{
-                v = "Boxed "+ (Integer) f.get(c);
-            }
-            return v;
-        }
-
-        if(Obj1.equals("java.lang.Long")){
-            if(f.getType().getName().equals("long")) {
-                v = Long.toString((Long) f.get(c));
-            }
-            else{
-                v = "Boxed "+ (Long) f.get(c);
-            }
-            return v+ "#L";
-        }
-
-        if(Obj1.equals("java.lang.Float")){
-            if(f.getType().getName().equals("float")) {
-                v = Float.toString((Float) f.get(c));
-            }
-            else{
-                v = "Boxed "+ (Float) f.get(c);
-            }
-            return v+ "#F";
-        }
-
-        if(Obj1.equals("java.lang.Double")){
-            if(f.getType().getName().equals("double")) {
-                v = Double.toString((Double) f.get(c));
-            }
-            else{
-                v = "Boxed "+ (Double) f.get(c);
-            }
-            return v+ "#D";
-        }
-
-        if(Obj1.equals("java.lang.Short")){
-            if(f.getType().getName().equals("short")) {
-                v = "0" +Integer.toOctalString((Short) f.get(c));
-            }
-            else{
-                v = "Boxed 0"+Integer.toOctalString((Short) f.get(c));
-            }
-            return v;
-        }
-
-        if(Obj1.equals("java.lang.Byte")){
-            if(f.getType().getName().equals("byte")) {
-                v = "0x"+Integer.toHexString((Byte) f.get(c));
-            }
-            else{
-                v = "Boxed 0x"+Integer.toHexString((Byte) f.get(c));
-            }
-            return v;
-        }
-
-        if(Obj1.equals("java.lang.Boolean")){
-            if(f.getType().getName().equals("boolean")) {
-                v = Boolean.toString((Boolean) f.get(c));
-            }
-            else{
-                v = "Boxed "+ (Boolean) f.get(c);
-            }
-            return v;
-        }
-
-        if(Obj1.equals("java.lang.Character")){
-            if(f.getType().getName().equals("char")) {
-                v = Character.toString((Character) f.get(c));
-            }
-            else{
-                v = "Boxed "+ (Character) f.get(c);
-            }
-            return v;
-        }
-        else{
-            return Obj.toString();
-        }
-    }
-    //Helper Function
-    public Set<Field> getPrivateField(Class<?> c,Set<Field>  field) {
-        while (!c.getName().equals("java.lang.Object")) {
-            for (Field f : List.of(c.getFields())) {
-                if (!Modifier.isPrivate(f.getModifiers())) {
-                    field.add(f);
-                    c=c.getSuperclass();
-                }
-            }
-        }
-        return field;
-    }
-
     @Override
     public Map<String, String> describeObject(Object o) {
-        Class<?> c = o.getClass();
-        Set<Field> field = new HashSet<>(List.of(c.getDeclaredFields()));
+        Class<?> c;
+        Set<Field> fs;
+        if (o instanceof Class) {
+            c = (Class<?>) o;
+            fs = getAllFields(c, true);
+        } else {
+            c = o.getClass();
+            fs = getAllFields(c, false);
+        }
         Map<String, String> ret = new HashMap<>();
-        //Helper Function Called
-        field=getPrivateField(c.getSuperclass(),field);
 
-        for(Field f: field){
+        for (Field f : fs) {
             try {
-                key = f.getName();
-                //Helper Function Called
-                value = GetValue(o,f);
-                ret.put(key , value);
-            }
-            catch(ReflectiveOperationException e) {
+                String key = describeFieldName(f);
+                f.setAccessible(true);
+                Object valueOfTheField = f.get(o);
+                String value = describeFieldValue(f.getType(), valueOfTheField);
+                ret.put(key, value);
+            } catch (ReflectiveOperationException e) {
                 throw new Error(e);
-            } catch (RuntimeException e){
-                key=f.getName();
-                value="Thrown exception: "+e.getClass().getName();
-            } catch (Error e){
-                value="Raised error: "+e.getClass().getName();
-            }
-            finally{
-                ret.put(key , value);
             }
         }
         return ret;
     }
 
+    private String describeFieldName(Field f) {
+        int mods = f.getModifiers();
+        if (Modifier.isStatic(mods)) {
+            return f.getDeclaringClass().getSimpleName() + "." + f.getName();
+        } else {
+            return f.getName();
+        }
+    }
+
+    private Set<Field> getAllFields(Class<?> c, boolean onlyStatic) {
+        Set<Field> ret = new HashSet<>();
+
+        while (c != null) {
+            Field[] declaredFields = c.getDeclaredFields();
+            for (Field f : declaredFields) {
+                if (onlyStatic && !Modifier.isStatic(f.getModifiers()))
+                    continue;
+                ret.add(f);
+            }
+            c = c.getSuperclass();
+
+        }
+        return ret;
+    }
+
+    private String describeFieldValue(Class<?> fieldType, Object val) {
+        if (val == null) {
+            return "null";
+        }
+        String ret = describePrimitive(val);
+        if (ret != null) {
+            if (isPrimitive(fieldType))
+                return ret;
+            else
+                return "Boxed " + ret;
+        }
+        try {
+            try{
+                for(Method m : val.getClass().getDeclaredMethods()){
+                    if(!"debug".equals(m.getName()))
+                        continue;
+                    if(!Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 0){
+                        return (String) m.invoke(val);
+                    }
+                    if(Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 1 && m.getParameterTypes()[0].isAssignableFrom(val.getClass())){
+                        return (String) m.invoke(null,val);
+                    }
+                }
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
+            } catch (ReflectiveOperationException e) {
+                throw new Error(e);
+            }
+            return val.toString();
+        } catch (Error e) {
+            return "Raised error: " + e.getClass().getName();
+        } catch (RuntimeException e) {
+            return "Thrown exception: " + e.getClass().getName();
+        }catch(Throwable e){
+            return "Thrown checked exception: " +e.getClass().getName();
+        }
+
+    }
+
+    private Set<Class<?>> primitive = Set.of(int.class, long.class, float.class, double.class, short.class, byte.class,
+            char.class, boolean.class);
+
+    private boolean isPrimitive(Class<?> c) {
+        return primitive.contains(c);
+    }
+
+    private String describePrimitive(Object val) {
+        switch (val.getClass().getName()) {
+            case "java.lang.Integer":
+                return Integer.toString((Integer) val);
+            case "java.lang.Long":
+                return Long.toString((Long) val) + "#L";
+            case "java.lang.Float":
+                return Float.toString((Float) val) + "#F";
+            case "java.lang.Double":
+                return Double.toString((Double) val) + "#D";
+            case "java.lang.Short":
+                return "0" + Integer.toOctalString((Short) val);
+            case "java.lang.Byte":
+                return "0x" + Integer.toHexString((Byte) val);
+            case "java.lang.Character":
+                return Character.toString((Character) val);
+            case "java.lang.Boolean":
+                return Boolean.toString((Boolean) val);
+            default:
+                return null;
+
+        }
+    }
+
     @Override
     public void updateObject(Object o, Map<String, Object> fields) {
-        throw new Error("Not Implemented");
+        for (Map.Entry<String, Object> e : fields.entrySet()) {
+            try {
+                Class<?> c = o.getClass();
+                Field f = null;
+                for (Field ff : getAllFields(c, false)) {
+                    if (ff.getName().equals(e.getKey())) {
+                        f = ff;
+                        break;
+                    }
+                }
+                f.setAccessible(true);
+                f.set(o, e.getValue());
+            } catch (ReflectiveOperationException ex) {
+                throw new Error(ex);
+            }
+        }
     }
 }
